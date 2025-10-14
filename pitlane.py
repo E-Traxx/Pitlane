@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simple helper for building and flashing Pulsar or NOVA firmware."""
+# Simple helper for building and flashing Pulsar or NOVA firmware.
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from halo import Halo
 import click
 
 
-ROOT = Path(__file__).resolve()
+ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TARGET = "Pulsar.elf"
 DEFAULT_PRESET = "Debug"
 DEFAULT_PROGRAMMER = "STM32_Programmer_CLI"
@@ -20,7 +20,7 @@ figlet = Figlet(font="slant")
 
 
 def ensure_tools(tools: list[str]) -> None:
-    """Abort the command if a required tool cannot be found."""
+    # Abort the command if a required tool cannot be found.
 
     missing = [tool for tool in tools if shutil.which(tool) is None]
     if missing:
@@ -29,13 +29,13 @@ def ensure_tools(tools: list[str]) -> None:
         raise click.Abort()
 
 
-def configure_and_build(preset: str) -> None:
-    """Run the standard CMake configure and build steps."""
+def configure_and_build(preset: str, project_root: Path) -> None:
+    # Run the standard CMake configure and build steps.
 
     spinner = Halo(text=f"Configuring ({preset})", spinner="dots")
     spinner.start()
     try:
-        subprocess.check_call(["cmake", "--preset", preset], cwd=ROOT)
+        subprocess.check_call(["cmake", "--preset", preset], cwd=project_root)
     except subprocess.CalledProcessError as exc:
         spinner.fail("Configuration failed")
         raise click.ClickException(
@@ -46,7 +46,7 @@ def configure_and_build(preset: str) -> None:
     spinner = Halo(text=f"Building ({preset})", spinner="dots")
     spinner.start()
     try:
-        subprocess.check_call(["cmake", "--build", "--preset", preset], cwd=ROOT)
+        subprocess.check_call(["cmake", "--build", "--preset", preset], cwd=project_root)
     except subprocess.CalledProcessError as exc:
         spinner.fail("Build failed")
         raise click.ClickException(
@@ -56,7 +56,7 @@ def configure_and_build(preset: str) -> None:
 
 
 def resolve_image_path(preset: str, image: Path | None) -> Path:
-    """Return the firmware image to flash."""
+    # Return the firmware image to flash.
 
     if image is None:
         image = ROOT / "build" / preset / DEFAULT_TARGET
@@ -65,29 +65,48 @@ def resolve_image_path(preset: str, image: Path | None) -> Path:
     return image
 
 
-@click.group()
+@click.group(help="E-Traxx ECU Build & Flash Tool.")
 def cli() -> None:
-    """E-Traxx ECU Build & Flash Tool."""
+    # Entry point for the Pitlane CLI interface.
 
     click.echo(figlet.renderText("PITLANE"))
 
 
-@cli.command()
+@cli.command(help="Configure and compile the firmware.")
 @click.option(
     "--release/--debug",
     default=False,
     show_default=True,
     help="Select the CMake preset",
 )
-def build(release: bool) -> None:
-    """Configure and compile the firmware."""
+@click.option(
+    "--root",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Project root directory (defaults to repository root)",
+)
+@click.argument(
+    "root_arg",
+    type=click.Path(path_type=Path),
+    required=False,
+)
+def build(release: bool, root: Path | None, root_arg: Path | None) -> None:
+    # Configure and compile the firmware.
+
+    if root is not None and root_arg is not None:
+        raise click.ClickException("Use either the --root option or positional root argument, not both.")
 
     preset = "Release" if release else DEFAULT_PRESET
     ensure_tools(["cmake", "arm-none-eabi-gcc"])
-    configure_and_build(preset)
+
+    selected_root = root if root is not None else root_arg
+    project_root = selected_root.resolve() if selected_root is not None else ROOT
+    if not project_root.is_dir():
+        raise click.ClickException(f"Root directory not found: {project_root}")
+    configure_and_build(preset, project_root)
 
 
-@cli.command()
+@cli.command(help="Build the project (if needed) and flash it with STM32CubeProgrammer.")
 @click.option(
     "--release/--debug",
     default=False,
@@ -112,12 +131,12 @@ def flash(
     no_verify: bool,
     no_reset: bool,
 ) -> None:
-    """Build the project (if needed) and flash it with STM32CubeProgrammer."""
+    # Build the project (if needed) and flash it with STM32CubeProgrammer.
 
     ensure_tools(["cmake", DEFAULT_PROGRAMMER])
 
     preset = "Release" if release else DEFAULT_PRESET
-    configure_and_build(preset)
+    configure_and_build(preset, ROOT)
 
     firmware = resolve_image_path(preset, image)
 
@@ -141,9 +160,9 @@ def flash(
     spinner.succeed("Flashing complete")
 
 
-@cli.command()
+@cli.command(help="Show connected programmers using STM32CubeProgrammer.")
 def devices() -> None:
-    """Show connected programmers using STM32CubeProgrammer."""
+    # Show connected programmers using STM32CubeProgrammer.
 
     ensure_tools([DEFAULT_PROGRAMMER])
     spinner = Halo(text="Checking connected devices", spinner="dots")
