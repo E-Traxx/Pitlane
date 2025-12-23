@@ -1,0 +1,12 @@
+[package]
+name = "pitlane_rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+which = "6.0"
+miette = { version = "7.6.0", features = ["fancy"] }
+clap = { version = "4.5.53", features = ["derive"] }
+indicatif = "0.18.3"
+thiserror = "2.0.17"
+spinner = "0.5.0"
