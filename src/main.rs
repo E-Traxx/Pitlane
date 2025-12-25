@@ -69,6 +69,7 @@ fn args_parser(sp: SpinnerHandle, missing_tools: Vec<String>) -> Result<(), Stri
         "flash" => 'flash: {
             sp.message("Flashing the Project\n".into());
             if missing_tools.contains(&types::DEFAULT_PROGRAMMER.to_string()) {
+                println!("Please refer to the documentation for how to install the required tools");
                 break 'flash;
             }
             flash(&args.preset, &path)?;
@@ -76,11 +77,15 @@ fn args_parser(sp: SpinnerHandle, missing_tools: Vec<String>) -> Result<(), Stri
         "devices" => 'devices: {
             sp.message("Listing Available Devices\n".into());
             if missing_tools.contains(&types::DEFAULT_PROGRAMMER.to_string()) {
+                println!("Please refer to the documentation for how to install the required tools");
                 break 'devices;
             }
+            println!("Listing Available Devices");
             check_devices()?;
         }
-        _ => {}
+        _ => {
+            println!("Please use a valid command, build, devices, configure, flash");
+        }
     };
     Ok(())
 }
@@ -97,8 +102,8 @@ fn check_if_tool_is_missing(missing_tools: Vec<String>, tool: Vec<String>) -> bo
 
 fn is_arg_valid(args: &Args) -> Result<(), String> {
     let command = &args.command;
-    if command != "configure" && command != "build" && command != "build-logs" && command != "flash"
-    {
+    println!("Command: {command}");
+    if command != "configure" && command != "build" && command != "devices" && command != "flash" {
         Err("Please use a valid command, Build, Build-Logs, Configure, Flash")?;
     }
 
@@ -181,19 +186,48 @@ fn build(preset: &str, path: &PathBuf) -> Result<(), String> {
     Ok(())
 }
 
+// // run STM32_Programmer_CLI
+// fn flash(preset: &str, path: &PathBuf) -> Result<(), String> {
+//     let elf_path = is_elf_present(path, preset)?;
+//
+//     println!("Flashing ELF: {}", elf_path.to_string_lossy());
+//
+//     let command = Command::new(types::DEFAULT_PROGRAMMER)
+//         .args(["-c", "port=SWD", "-w", elf_path.to_string_lossy().as_ref()])
+//         .args(["-v, -rst"]);
+//     let status = &command
+//         .status()
+//         .map_err(|e| format!("Failed to run STM32 Programmer: {e}"))?;
+//     println!("Flash Status: {}", status);
+//     if !status.success() {
+//         return Err(format!("flash exited with {}", status.code().unwrap_or(-1)));
+//     }
+//     Ok(())
+// }
+
 // run STM32_Programmer_CLI
 fn flash(preset: &str, path: &PathBuf) -> Result<(), String> {
     let elf_path = is_elf_present(path, preset)?;
 
-    let status = Command::new(types::DEFAULT_PROGRAMMER)
-        .args(["-c", "port=SWD", "-w"])
-        .current_dir(elf_path)
+    println!("Flashing ELF: {}", elf_path.display());
+
+    let mut command = Command::new(types::DEFAULT_PROGRAMMER);
+
+    command
+        .args(["-c", "port=SWD"])
+        .args(["-w", elf_path.to_string_lossy().as_ref()])
+        .args(["-v", "-rst"]);
+
+    let status = command
         .status()
         .map_err(|e| format!("Failed to run STM32 Programmer: {e}"))?;
+
+    println!("Flash Status: {}", status);
 
     if !status.success() {
         return Err(format!("flash exited with {}", status.code().unwrap_or(-1)));
     }
+
     Ok(())
 }
 
